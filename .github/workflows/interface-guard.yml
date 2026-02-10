@@ -15,7 +15,7 @@ jobs:
           path: head_repo
           submodules: recursive
           # Use your PAT secret if Repo A is private
-          token: ${{ secrets.MY_PAT }}
+          token: ${{ secrets.CI_SUBMODULE_ACCESS }}
 
       # 2. Checkout the Main Branch (The "Old" code)
       - name: Checkout Base (Main)
@@ -24,7 +24,7 @@ jobs:
           ref: main
           path: base_repo
           submodules: recursive
-          token: ${{ secrets.MY_PAT }}
+          token: ${{ secrets.CI_SUBMODULE_ACCESS }}
 
       # 3. The Comparison Logic
       - name: Run Interface Comparison
