@@ -1,0 +1,102 @@
+name: Submodule Interface Guard
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  contract-test:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout the PR Branch (The "New" code)
+      - name: Checkout Head (PR)
+        uses: actions/checkout@v4
+        with:
+          path: head_repo
+          submodules: recursive
+          # Use your PAT secret if Repo A is private
+          token: ${{ secrets.CI_SUBMODULE_ACCESS }}
+          fetch-depth: 1
+
+      # 2. Checkout the Main Branch (The "Old" code)
+      - name: Checkout Base (Main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: base_repo
+          submodules: recursive
+          token: ${{ secrets.CI_SUBMODULE_ACCESS }}
+
+      # 3. The Comparison Logic
+      - name: Run Interface Comparison
+        shell: python
+        # We pass the PR labels into the environment so Python can read them
+        env:
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels) }}
+        run: |
+          import ast, os, sys
+          # 1. Check if the 'interface-verified' label is present
+            labels = json.loads(os.getenv("PR_LABELS", "[]"))
+            label_names = [l['name'] for l in labels]
+            is_verified = "interface-verified" in label_names
+
+          def get_functions(repo_root):
+              """Finds all function names in the submodule directory."""
+              functions = {}
+              # IMPORTANT: Change 'libs/submodule' to match your actual path in Repo B
+              sub_path = os.path.join(repo_root, "libs/submodule")
+              
+              for root, _, files in os.walk(sub_path):
+                  for f in files:
+                      if f.endswith(".py"):
+                          file_path = os.path.join(root, f)
+                          with open(file_path, "r") as s:
+                              tree = ast.parse(s.read())
+                              # Get relative path for the report
+                              rel_f = os.path.relpath(file_path, sub_path)
+                              functions[rel_f] = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+              return functions
+
+          # Extract interfaces from both checkouts
+          old_interface = get_functions("base_repo")
+          new_interface = get_functions("head_repo")
+
+          errors = []
+          for file, funcs in old_interface.items():
+              new_funcs = new_interface.get(file, [])
+              # Check for deleted or renamed functions
+              missing = set(funcs) - set(new_funcs)
+              if missing:
+                  errors.append(f"❌ **{file}**: Missing functions {list(missing)}")
+
+          # Generate output for the next step
+          if errors:
+              summary = "### 🚨 Breaking Interface Changes\n" + "\n".join(errors)
+              if is_verified:
+                  # THE KEY CHANGE: If label exists, we write the report but DON'T sys.exit(1)
+                  with open("result.txt", "w") as f:
+                      f.write(f"⚠️ **Note**: Breaking changes detected, but allowed by `{interface-verified}` label.\n\n" + summary)
+                  print("Breaking changes found, but override label is present.")
+                  sys.exit(0) 
+              else:
+                  with open("result.txt", "w") as f:
+                      f.write(summary)
+                  sys.exit(1)
+          else:
+              with open("result.txt", "w") as f:
+                  f.write("✅ Submodule interface is compatible.")
+
+      # 4. Post the result as a comment on the PR
+      - name: Post PR Comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const result = fs.readFileSync('result.txt', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: result
+            });
