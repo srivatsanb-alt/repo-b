@@ -36,9 +36,9 @@ jobs:
         run: |
           import ast, os, sys
           # 1. Check if the 'interface-verified' label is present
-            labels = json.loads(os.getenv("PR_LABELS", "[]"))
-            label_names = [l['name'] for l in labels]
-            is_verified = "interface-verified" in label_names
+          labels = json.loads(os.getenv("PR_LABELS", "[]"))
+          label_names = [l['name'] for l in labels]
+          is_verified = "interface-verified" in label_names
 
           def get_functions(repo_root):
               """Finds all function names in the submodule directory."""
