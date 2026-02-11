@@ -16,6 +16,7 @@ jobs:
           submodules: recursive
           # Use your PAT secret if Repo A is private
           token: ${{ secrets.CI_SUBMODULE_ACCESS }}
+          fetch-depth: 1
 
       # 2. Checkout the Main Branch (The "Old" code)
       - name: Checkout Base (Main)
