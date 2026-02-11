@@ -75,7 +75,7 @@ jobs:
               if is_verified:
                   # THE KEY CHANGE: If label exists, we write the report but DON'T sys.exit(1)
                   with open("result.txt", "w") as f:
-                      f.write(f"⚠️ **Note**: Breaking changes detected, but allowed by `{interface-verified}` label.\n\n" + summary)
+                      f.write("⚠️ **Note**: Breaking changes detected, but allowed by `interface-verified` label.\n\n" + summary)
                   print("Breaking changes found, but override label is present.")
                   sys.exit(0) 
               else:
