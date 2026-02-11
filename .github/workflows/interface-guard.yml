@@ -30,8 +30,15 @@ jobs:
       # 3. The Comparison Logic
       - name: Run Interface Comparison
         shell: python
+        # We pass the PR labels into the environment so Python can read them
+        env:
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels) }}
         run: |
           import ast, os, sys
+          # 1. Check if the 'interface-verified' label is present
+            labels = json.loads(os.getenv("PR_LABELS", "[]"))
+            label_names = [l['name'] for l in labels]
+            is_verified = "interface-verified" in label_names
 
           def get_functions(repo_root):
               """Finds all function names in the submodule directory."""
@@ -64,13 +71,20 @@ jobs:
 
           # Generate output for the next step
           if errors:
-              with open("result.txt", "w") as f:
-                  f.write("### 🚨 Breaking Interface Changes Detected\n" + "\n".join(errors))
-              print("\n".join(errors))
-              sys.exit(1) # This fails the check and turns the PR button RED
+              summary = "### 🚨 Breaking Interface Changes\n" + "\n".join(errors)
+              if is_verified:
+                  # THE KEY CHANGE: If label exists, we write the report but DON'T sys.exit(1)
+                  with open("result.txt", "w") as f:
+                      f.write(f"⚠️ **Note**: Breaking changes detected, but allowed by `{interface-verified}` label.\n\n" + summary)
+                  print("Breaking changes found, but override label is present.")
+                  sys.exit(0) 
+              else:
+                  with open("result.txt", "w") as f:
+                      f.write(summary)
+                  sys.exit(1)
           else:
               with open("result.txt", "w") as f:
-                  f.write("✅ Submodule interface is backwards compatible.")
+                  f.write("✅ Submodule interface is compatible.")
 
       # 4. Post the result as a comment on the PR
       - name: Post PR Comment
