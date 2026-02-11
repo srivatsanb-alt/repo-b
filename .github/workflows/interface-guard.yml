@@ -34,7 +34,7 @@ jobs:
         env:
           PR_LABELS: ${{ toJson(github.event.pull_request.labels) }}
         run: |
-          import ast, os, sys
+          import ast, os, sys, json
           # 1. Check if the 'interface-verified' label is present
           labels = json.loads(os.getenv("PR_LABELS", "[]"))
           label_names = [l['name'] for l in labels]
