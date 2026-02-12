@@ -35,15 +35,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Give the GitHub API a second to register the label change
-          sleep 2
+          # Move into the checked out repo so 'gh' knows the context
+          cd head_repo
           
-          # Fetch labels and format them as a JSON array string
-          # Using 'gh pr view' is the most reliable way to get 'live' status
+          # Now run the command
           LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '[.labels.[].name] | @json')
           
+          # Export it back to the global environment
           echo "LIVE_LABELS=$LABELS" >> $GITHUB_ENV
-          echo "Labels found: $LABELS" # This will show in your logs for debugging
+          echo "Labels found: $LABELS"
       # 3. The Comparison Logic
       - name: Run Interface Comparison
         shell: python
