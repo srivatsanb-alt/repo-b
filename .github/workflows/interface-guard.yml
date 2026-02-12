@@ -30,13 +30,21 @@ jobs:
           path: base_repo
           submodules: recursive
           token: ${{ secrets.CI_SUBMODULE_ACCESS }}
-
+      - name: Fetch Live PR Labels
+        id: get_labels
+        run: |
+          # We use the GitHub CLI (gh) which is pre-installed on all runners
+          LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels.[].name' | jq -R . | jq -s -c .)
+          echo "live_labels=$LABELS" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # 3. The Comparison Logic
       - name: Run Interface Comparison
         shell: python
         # We pass the PR labels into the environment so Python can read them
         env:
-          PR_LABELS: ${{ toJson(github.event.pull_request.labels) }}
+          # Use the LIVE labels we just fetched instead of the event payload
+          PR_LABELS: ${{ env.live_labels }}
         run: |
           import ast, os, sys, json
           # 1. Check if the 'interface-verified' label is present
