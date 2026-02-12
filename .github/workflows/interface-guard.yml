@@ -32,24 +32,36 @@ jobs:
           token: ${{ secrets.CI_SUBMODULE_ACCESS }}
       - name: Fetch Live PR Labels
         id: get_labels
-        run: |
-          # We use the GitHub CLI (gh) which is pre-installed on all runners
-          LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels.[].name' | jq -R . | jq -s -c .)
-          echo "live_labels=$LABELS" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Give the GitHub API a second to register the label change
+          sleep 2
+          
+          # Fetch labels and format them as a JSON array string
+          # Using 'gh pr view' is the most reliable way to get 'live' status
+          LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '[.labels.[].name] | @json')
+          
+          echo "LIVE_LABELS=$LABELS" >> $GITHUB_ENV
+          echo "Labels found: $LABELS" # This will show in your logs for debugging
       # 3. The Comparison Logic
       - name: Run Interface Comparison
         shell: python
-        # We pass the PR labels into the environment so Python can read them
         env:
-          # Use the LIVE labels we just fetched instead of the event payload
-          PR_LABELS: ${{ env.live_labels }}
+          # Explicitly mapping the environment variable
+          PR_LABELS: ${{ env.LIVE_LABELS }}
         run: |
           import ast, os, sys, json
-          # 1. Check if the 'interface-verified' label is present
-          # Now this will accurately reflect the label being removed
-          labels = json.loads(os.getenv("PR_LABELS", "[]"))
+
+          # 1. Parse labels
+          labels_raw = os.getenv("PR_LABELS", "[]")
+          print(f"Python received labels: {labels_raw}")
+          
+          try:
+              labels = json.loads(labels_raw)
+          except:
+              labels = []
+              
           is_verified = "interface-verified" in labels
           print(f"Labels on PR: {labels}")
           def get_functions(repo_root):
@@ -91,6 +103,7 @@ jobs:
                   print("Breaking changes found, but override label is present.")
                   sys.exit(0) 
               else:
+                  print("No override label found.")
                   with open("result.txt", "w") as f:
                       f.write(summary)
                   sys.exit(1)
